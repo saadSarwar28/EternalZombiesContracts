@@ -12,4 +12,15 @@ interface IMinter {
 
 contract EternalZombiesDistributor is Ownable {
 
+    address public ZMBE;
+
+    uint public EMISSION_RATE;
+
+    constructor(
+        address zmbe
+    ) {
+        ZMBE = zmbe;
+    }
+
+
 }

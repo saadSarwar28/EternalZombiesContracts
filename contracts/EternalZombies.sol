@@ -12,27 +12,33 @@ import "openzeppelin-solidity/contracts/access/Ownable.sol";
 import "openzeppelin-solidity/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
 import "openzeppelin-solidity/contracts/utils/Strings.sol";
-
+import "openzeppelin-solidity/contracts/utils/cryptography/MerkleProof.sol";
 
 interface IStaker {
-    function deposit() external payable;
+    function deposit() external payable returns(bool success);
 }
 
 contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
 
-    uint public TOKEN_ID; // starts from the total supply of the previous contract
-
-    uint256 public nftPrice;
-
-    uint256 public whitelistPrice;
+    uint public TOKEN_ID;
 
     uint256 public MAX_SUPPLY;
 
+    uint256 public nftPrice = 200_000_000_000_000_000; // 0.2 BNB
+
+    uint256 public whitelistPrice = 150_000_000_000_000_000; // 0.15 BNB;
+
     bool public whitelistActive = true;
+
+    mapping(address => bool) public whitelistClaimed;
 
     bool public saleIsActive = true;
 
     address public STAKER;
+
+    uint public ALLOCATED_FOR_TEAM;
+
+    uint public TEAM_COUNT;
 
     // Optional mapping for token URIs
     mapping(uint256 => string) private _tokenURIs;
@@ -40,25 +46,27 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
     // Token URI
     string public baseTokenURI;
 
-    constructor(uint256 maxNftSupply, uint publicSalePrice, uint _whitelistPrice, address staker) ERC721("Eternal Zombies", "EZS") {
+    bytes32 public merkleRoot;
+
+    constructor(uint256 maxNftSupply, address staker, uint forTeam) ERC721("Eternal Zombies", "EZ") {
         MAX_SUPPLY = maxNftSupply;
-        nftPrice = publicSalePrice;
-        whitelistPrice = _whitelistPrice;
         STAKER = staker;
+        ALLOCATED_FOR_TEAM = forTeam;
+    }
+
+    function setMerkleRoot(bytes32 _merkleRoot) public onlyOwner {
+        merkleRoot = _merkleRoot;
     }
 
     function setStakerAddress(address staker) public onlyOwner {
-        require(staker != address(0), "Cannot be a zero address");
         STAKER = staker;
     }
 
     function setSalePrice(uint price) public onlyOwner() {
-        require(price > 0, "Cannot be zero");
         nftPrice = price;
     }
 
     function setWhitelistSalePrice(uint price) public onlyOwner() {
-        require(price > 0, "Cannot be zero");
         whitelistPrice = price;
     }
 
@@ -86,22 +94,33 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
         whitelistActive = !whitelistActive;
     }
 
-    function mintNFT(uint amount) public payable nonReentrant() {
+    function whitelistMint(bytes32[] calldata _merkleProof) public payable nonReentrant {
+        require(whitelistActive && whitelistPrice > 0, "Whitelist not active yet.");
+        require(TOKEN_ID < MAX_SUPPLY, "Mint exceeds limits");
+        require(STAKER != address(0), 'Staking contract address not set');
+        require(!whitelistClaimed[msg.sender], "Already Claimed");
+        require(msg.value >= whitelistPrice, "Not enough balance");
+        bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
+        require(MerkleProof.verify(_merkleProof, merkleRoot, leaf), "Invalid Proof");
+        require(IStaker(STAKER).deposit{value: msg.value}(), "Staking Failure");
+        whitelistClaimed[msg.sender] = true;
+        mintFor(msg.sender);
+    }
+
+    function mint(uint amount) public payable nonReentrant() {
         require(nftPrice != 0, "Minting price not set yet");
-        require(STAKER != address(0), 'Staking contract address not set.');
+        require(STAKER != address(0), 'Staking contract address not set');
         require(saleIsActive, "Sale must be active to mint nft");
-        require(msg.value >= nftPrice * amount, "Not enough bnb balance");
-        IStaker(STAKER).deposit{value: msg.value}();
+        require(msg.value >= nftPrice * amount, "Not enough balance");
+        require(IStaker(STAKER).deposit{value: msg.value}(), "Staking Failure");
+        require((TOKEN_ID + amount) <= MAX_SUPPLY, "Purchase would exceed max supply of NFTs");
         for (uint index = 0; index < amount; index++) {
-            TOKEN_ID = TOKEN_ID + 1;
-            require(TOKEN_ID <= MAX_SUPPLY, "Purchase would exceed max supply of NFTs");
-            _safeMint(msg.sender, TOKEN_ID);
+            mintFor(msg.sender);
         }
     }
 
     // mint for function to mint an nft for a given address, can be called only by owner
-    function mintFor(address _to) public onlyOwner() {
-        require((TOKEN_ID + 1) <= MAX_SUPPLY, "Purchase would exceed max supply of NFTs");
+    function mintFor(address _to) private {
         TOKEN_ID += 1;
         _safeMint(_to, TOKEN_ID);
     }
@@ -109,8 +128,10 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
     // mass minting function, one for each address
     function massMint(address[] memory addresses) public onlyOwner() {
         uint index;
+        require((TEAM_COUNT + addresses.length) <= ALLOCATED_FOR_TEAM && (TOKEN_ID + addresses.length) <= MAX_SUPPLY, "Amount exceeds allocation");
         for (index = 0; index < addresses.length; index++) {
             mintFor(addresses[index]);
+            TEAM_COUNT += 1;
         }
     }
 
