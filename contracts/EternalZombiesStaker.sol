@@ -4,6 +4,11 @@ pragma solidity ^0.8.4;
 
 import "openzeppelin-solidity/contracts/access/Ownable.sol";
 import "openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
+import "./Percentages.sol";
+
+interface IERC721 {
+    function transferFrom(address from, address to, uint256 tokenId) external;
+}
 
 interface IBEP20 {
     function balanceOf(address account) external view returns (uint256);
@@ -46,7 +51,7 @@ interface IPancakeSwapRouter {
         uint256 amountETHMin,
         address to,
         uint256 deadline
-    ) external returns (uint amountToken, uint amountETH, uint liquidity);
+    ) external payable returns (uint amountToken, uint amountETH, uint liquidity);
 }
 
 interface IDrFrankenstein {
@@ -65,13 +70,15 @@ interface IDrFrankenstein {
 
 contract EternalZombiesStaker is Ownable, ReentrancyGuard {
 
+    using Percentages for uint;
+
     uint256 MAX_INT = 2**256 - 1;
 
     uint public BNB_RECEIVED;
     uint public ZMBE_BOUGHT;
     uint public LP_BOUGHT;
-    uint public LP_STAKED;
     uint public COMPOUNDED;
+    uint public ZMBE_DISTRIBUTED;
 
     address public ZMBE;
     address public WRAPPED_BNB;
@@ -117,6 +124,10 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         PANCAKE_LP_TOKEN = lp_token;
     }
 
+    function setPancakeRouterAddress(address router) public onlyOwner() {
+        PANCAKE_ROUTER = router;
+    }
+
     function adjustRestakePercentage(uint percentage) public onlyOwner() {
         RESTAKE_PERCENTAGE = percentage;
     }
@@ -138,18 +149,21 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
             amountsOut[1],
             path,
             address(this),
-            block.timestamp + 10
+            block.timestamp
         );
         return amounts[1];
     }
 
-    // this one's not working
-    function buyLPTokens(uint zmbe, uint bnb) public returns(uint LpBought){
-        ( , , uint liquidity) = IPancakeSwapRouter(PANCAKE_ROUTER).addLiquidityETH(
+    function buyLPTokens(uint bnb) private returns(uint LpBought){
+        address[] memory path = new address[](2);
+        path[0] = WRAPPED_BNB;
+        path[1] = ZMBE;
+        uint[] memory amountsOut = IPancakeSwapRouter(PANCAKE_ROUTER).getAmountsOut(bnb, path);
+        ( , , uint liquidity) = IPancakeSwapRouter(PANCAKE_ROUTER).addLiquidityETH{value: bnb}(
             ZMBE,
-            zmbe,
-            zmbe,
-            bnb,
+            amountsOut[1],
+            amountsOut[1].calcPortionFromBasisPoints(9500),
+            bnb.calcPortionFromBasisPoints(9500),
             address(this),
             block.timestamp
         );
@@ -160,35 +174,41 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         BNB_RECEIVED += msg.value;
         uint zmbe_bought = buyZMBE((msg.value / 2));
         ZMBE_BOUGHT += zmbe_bought;
-        uint lpBought = buyLPTokens(zmbe_bought, (msg.value / 2));
+        uint lpBought = buyLPTokens((msg.value / 2));
         LP_BOUGHT += lpBought;
         stake(lpBought);
         return(true);
     }
 
-    function stake(uint amount) public {
+    function stake(uint amount) private {
         IDrFrankenstein(DR_FRANKENSTEIN).deposit(POOL_ID, amount);
     }
 
     function restake(uint zmbeAmount) public onlyOwner() {
-        uint forBnb = zmbeAmount / 2;
-        uint bnbBought = buyBnb(forBnb);
-        uint lpBought = buyLPTokens((zmbeAmount / 2), bnbBought);
+        uint zmbeForBnb = zmbeAmount / 2;
+        uint bnbBought = buyBnb(zmbeForBnb);
+        uint lpBought = buyLPTokens(bnbBought);
         LP_BOUGHT += lpBought;
         stake(lpBought);
     }
 
-    function claimAndRestake() public onlyOwner() {
+    function harvest() public onlyOwner() {
         IDrFrankenstein(DR_FRANKENSTEIN).withdraw(POOL_ID, 0);
-        uint total_balance = IBEP20(ZMBE).balanceOf(address(this));
-        uint forDev = (total_balance * FUNDING_WALLET_PERCENTAGE) / 100;
-        uint forRestake = (total_balance * RESTAKE_PERCENTAGE) / 100;
-        IBEP20(ZMBE).transfer(msg.sender, forDev);
-        restake(forRestake);
-        IBEP20(ZMBE).transfer(DISTRIBUTOR, (total_balance - forRestake + forRestake));
     }
 
-    function buyBnb(uint zmbe) public returns(uint boughtBNB){
+    function claimAndRestake() public onlyOwner() {
+        harvest();
+        uint balance = IBEP20(ZMBE).balanceOf(address(this));
+        uint forDev = (balance / 100) * FUNDING_WALLET_PERCENTAGE;
+        uint forRestake = (balance / 100) * RESTAKE_PERCENTAGE;
+        uint forDistribution = balance - (forDev + forRestake);
+        restake(forRestake);
+        IBEP20(ZMBE).transfer(msg.sender, forDev);
+        IBEP20(ZMBE).transfer(DISTRIBUTOR, forDistribution);
+        ZMBE_DISTRIBUTED += forDistribution;
+    }
+
+    function buyBnb(uint zmbe) private returns(uint boughtBNB){
         address[] memory path = new address[](2);
         path[0] = ZMBE;
         path[1] = WRAPPED_BNB;
@@ -198,7 +218,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
             bnbAmountsOut[1],
             path,
             address(this),
-            block.timestamp + 10
+            block.timestamp
         );
         return amounts[1];
     }
@@ -214,6 +234,10 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
 
     function withdrawRemainingZmbe() public onlyOwner() {
         IBEP20(ZMBE).transfer(msg.sender, IBEP20(ZMBE).balanceOf(address(this)));
+    }
+
+    function withdrawRewardedNft(address tokenAddress, uint tokenId) public onlyOwner() {
+        IERC721(tokenAddress).transferFrom(address(this), msg.sender, tokenId);
     }
 
     function withdrawLpTokens(uint amount) public onlyOwner() {
@@ -232,4 +256,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         IBEP20(PANCAKE_LP_TOKEN).approve(DR_FRANKENSTEIN, MAX_INT);
     }
 
+    fallback() external payable {}
+
+    receive() external payable {}
 }
