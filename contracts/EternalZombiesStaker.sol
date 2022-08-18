@@ -68,6 +68,12 @@ interface IDrFrankenstein {
     function userInfo(uint, address) external returns(UserInfo memory);
 }
 
+interface ITombOverlay {
+    function mintingFeeInBnb() external view returns(uint);
+    function startMinting(uint _pid) external payable returns (bytes32);
+    function finishMinting(uint _pid) external returns (uint, uint);
+}
+
 contract EternalZombiesStaker is Ownable, ReentrancyGuard {
 
     using Percentages for uint;
@@ -86,11 +92,15 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
     address public DISTRIBUTOR;
     address public DR_FRANKENSTEIN;
     address public PANCAKE_LP_TOKEN;
+    address public TOMB_OVERLAY;
 
     uint public RESTAKE_PERCENTAGE;
     uint public FUNDING_WALLET_PERCENTAGE;
 
     uint public POOL_ID = 11;
+
+    uint public REWARD_TOKEN_ID;
+    uint public REWARD_TOKEN_RARITY;
 
     constructor(
         address wBNB,
@@ -99,6 +109,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         address distributor,
         address drFrankenstein,
         address lp_tokens,
+        address tombOverlay,
         uint restakePercentage,
         uint fundingWalletPercentage
     ) {
@@ -108,24 +119,29 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         DISTRIBUTOR = distributor;
         DR_FRANKENSTEIN = drFrankenstein;
         PANCAKE_LP_TOKEN = lp_tokens;
+        TOMB_OVERLAY = tombOverlay;
         RESTAKE_PERCENTAGE = restakePercentage;
         FUNDING_WALLET_PERCENTAGE = fundingWalletPercentage;
     }
 
-    function setDistributorAddress(address distributor) public onlyOwner() {
+    function setDistributor(address distributor) public onlyOwner() {
         DISTRIBUTOR = distributor;
     }
 
-    function setDrFrankensteinAddress(address frankenstein) public onlyOwner() {
+    function setDrFrankenstein(address frankenstein) public onlyOwner() {
         DR_FRANKENSTEIN = frankenstein;
     }
 
-    function setPancakeLPAddress(address lp_token) public onlyOwner() {
+    function setPancakeLP(address lp_token) public onlyOwner() {
         PANCAKE_LP_TOKEN = lp_token;
     }
 
-    function setPancakeRouterAddress(address router) public onlyOwner() {
+    function setPancakeRouter(address router) public onlyOwner() {
         PANCAKE_ROUTER = router;
+    }
+
+    function setTombOverlay(address tombOverlay) public onlyOwner() {
+        TOMB_OVERLAY = tombOverlay;
     }
 
     function adjustRestakePercentage(uint percentage) public onlyOwner() {
@@ -184,7 +200,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         IDrFrankenstein(DR_FRANKENSTEIN).deposit(POOL_ID, amount);
     }
 
-    function restake(uint zmbeAmount) public onlyOwner() {
+    function restake(uint zmbeAmount) private {
         uint zmbeForBnb = zmbeAmount / 2;
         uint bnbBought = buyBnb(zmbeForBnb);
         uint lpBought = buyLPTokens(bnbBought);
@@ -192,7 +208,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         stake(lpBought);
     }
 
-    function harvest() public onlyOwner() {
+    function harvest() private {
         IDrFrankenstein(DR_FRANKENSTEIN).withdraw(POOL_ID, 0);
     }
 
@@ -223,11 +239,10 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         return amounts[1];
     }
 
-    function sendTokensToDistributor() public onlyOwner() {
+    function sendRemainingTokensToDistributor() public onlyOwner() {
         IBEP20(ZMBE).transfer(DISTRIBUTOR, IBEP20(ZMBE).balanceOf(address(this)));
     }
 
-    // tested
     function withdrawRemainingBnb() public onlyOwner() {
         payable(msg.sender).transfer(address(this).balance);
     }
@@ -254,6 +269,21 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
 
     function getLPApproved() public onlyOwner() {
         IBEP20(PANCAKE_LP_TOKEN).approve(DR_FRANKENSTEIN, MAX_INT);
+    }
+
+    function startMinting() public onlyOwner() {
+        uint bnbValue = ITombOverlay(TOMB_OVERLAY).mintingFeeInBnb();
+        ITombOverlay(TOMB_OVERLAY).startMinting{value: bnbValue}(POOL_ID);
+    }
+
+    function claimNft() public onlyOwner() {
+        (uint rarity, uint tokenId) = ITombOverlay(TOMB_OVERLAY).finishMinting(POOL_ID);
+        REWARD_TOKEN_ID = tokenId;
+        REWARD_TOKEN_RARITY = rarity;
+    }
+
+    function sendRewardedNft(address tokenAddress, uint tokenId) public onlyOwner() {
+        IERC721(tokenAddress).transferFrom(address(this), DISTRIBUTOR, tokenId);
     }
 
     fallback() external payable {}
