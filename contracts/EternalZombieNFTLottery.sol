@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts v4.4.1 (utils/Context.sol)
+/**
+ * @title EternalZombiesNftDistributor
+ * @author : saad sarwar
+ */
 
 pragma solidity ^0.8.0;
 

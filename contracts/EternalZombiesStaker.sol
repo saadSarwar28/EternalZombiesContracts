@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 /**
- * @title EternalZombiesDistributor
+ * @title EternalZombiesStaker
  * @author : saad sarwar
  */
 
 pragma solidity ^0.8.4;
+
 
 import "openzeppelin-solidity/contracts/access/Ownable.sol";
 import "openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
