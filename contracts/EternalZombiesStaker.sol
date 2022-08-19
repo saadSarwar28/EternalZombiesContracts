@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: MIT
+/**
+ * @title EternalZombiesDistributor
+ * @author : saad sarwar
+ */
 
 pragma solidity ^0.8.4;
 
@@ -74,6 +78,10 @@ interface ITombOverlay {
     function finishMinting(uint _pid) external returns (uint, uint);
 }
 
+interface IDistributor {
+    function createDistributionCycle(uint amount) external;
+}
+
 contract EternalZombiesStaker is Ownable, ReentrancyGuard {
 
     using Percentages for uint;
@@ -90,12 +98,14 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
     address public WRAPPED_BNB;
     address public PANCAKE_ROUTER;
     address public DISTRIBUTOR;
+    address public NFT_DISTRIBUTOR;
     address public DR_FRANKENSTEIN;
     address public PANCAKE_LP_TOKEN;
     address public TOMB_OVERLAY;
 
     uint public RESTAKE_PERCENTAGE;
     uint public FUNDING_WALLET_PERCENTAGE;
+    uint public BURN_PERCENTAGE;
 
     uint public POOL_ID = 11;
 
@@ -144,12 +154,20 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         TOMB_OVERLAY = tombOverlay;
     }
 
+    function setNFTDistributor(address distributor) public onlyOwner() {
+        NFT_DISTRIBUTOR = distributor;
+    }
+
     function adjustRestakePercentage(uint percentage) public onlyOwner() {
         RESTAKE_PERCENTAGE = percentage;
     }
 
     function adjustFundingWalletPercentage(uint percentage) public onlyOwner() {
         FUNDING_WALLET_PERCENTAGE = percentage;
+    }
+
+    function adjustBurnPercentage(uint percentage) public onlyOwner() {
+        BURN_PERCENTAGE = percentage;
     }
 
     function setPoolId(uint poolId) public onlyOwner() {
@@ -217,11 +235,14 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         uint balance = IBEP20(ZMBE).balanceOf(address(this));
         uint forDev = (balance / 100) * FUNDING_WALLET_PERCENTAGE;
         uint forRestake = (balance / 100) * RESTAKE_PERCENTAGE;
-        uint forDistribution = balance - (forDev + forRestake);
+        uint forBurn = (balance / 100) * BURN_PERCENTAGE;
+        uint forDistribution = balance - (forDev + forRestake + forBurn);
         restake(forRestake);
+        IBEP20(ZMBE).transfer(0x000000000000000000000000000000000000dEaD, forBurn);
         IBEP20(ZMBE).transfer(msg.sender, forDev);
         IBEP20(ZMBE).transfer(DISTRIBUTOR, forDistribution);
         ZMBE_DISTRIBUTED += forDistribution;
+        IDistributor(DISTRIBUTOR).createDistributionCycle(forDistribution);
     }
 
     function buyBnb(uint zmbe) private returns(uint boughtBNB){
@@ -282,8 +303,8 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         REWARD_TOKEN_RARITY = rarity;
     }
 
-    function sendRewardedNft(address tokenAddress, uint tokenId) public onlyOwner() {
-        IERC721(tokenAddress).transferFrom(address(this), DISTRIBUTOR, tokenId);
+    function sendRewardedNft(address tokenAddress) public onlyOwner() {
+        IERC721(tokenAddress).transferFrom(address(this), NFT_DISTRIBUTOR, REWARD_TOKEN_ID);
     }
 
     fallback() external payable {}

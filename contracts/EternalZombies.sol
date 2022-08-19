@@ -1,9 +1,10 @@
-
 // SPDX-License-Identifier: MIT
 
 /**
- * @title Eternal Zombies
+ * @title EternalZombies
+ * @author : saad sarwar
  */
+
 
 
 pragma solidity ^0.8.4;

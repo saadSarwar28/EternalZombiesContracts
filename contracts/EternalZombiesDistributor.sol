@@ -1,86 +1,23 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts v4.4.1 (utils/Context.sol)
+/**
+ * @title EternalZombiesDistributor
+ * @author : saad sarwar
+ */
+
 
 pragma solidity ^0.8.0;
 
+import "openzeppelin-solidity/contracts/access/Ownable.sol";
+import "openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
 
 interface IBEP20 {
     function balanceOf(address account) external view returns (uint256);
     function transfer(address recipient, uint256 amount) external returns (bool);
-    function approve(address spender, uint256 amount) external returns (bool);
     function transferFrom(
         address sender,
         address recipient,
         uint256 amount
     ) external returns (bool);
-}
-
-abstract contract Context {
-    function _msgSender() internal view virtual returns (address) {
-        return msg.sender;
-    }
-
-    function _msgData() internal view virtual returns (bytes calldata) {
-        return msg.data;
-    }
-}
-
-abstract contract Ownable is Context {
-    address private _owner;
-
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    constructor() {
-        _transferOwnership(_msgSender());
-    }
-
-    function owner() public view virtual returns (address) {
-        return _owner;
-    }
-
-    modifier onlyOwner() {
-        require(owner() == _msgSender(), "Ownable: caller is not the owner");
-        _;
-    }
-
-    function renounceOwnership() public virtual onlyOwner {
-        _transferOwnership(address(0));
-    }
-
-    function transferOwnership(address newOwner) public virtual onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
-        _transferOwnership(newOwner);
-    }
-
-    function _transferOwnership(address newOwner) internal virtual {
-        address oldOwner = _owner;
-        _owner = newOwner;
-        emit OwnershipTransferred(oldOwner, newOwner);
-    }
-}
-
-abstract contract ReentrancyGuard {
-
-    uint256 private constant _NOT_ENTERED = 1;
-    uint256 private constant _ENTERED = 2;
-
-    uint256 private _status;
-
-    constructor() {
-        _status = _NOT_ENTERED;
-    }
-
-    modifier nonReentrant() {
-        // On the first call to nonReentrant, _notEntered will be true
-        require(_status != _ENTERED, "ReentrancyGuard: reentrant call");
-
-        // Any calls to nonReentrant after this point will fail
-        _status = _ENTERED;
-
-        _;
-
-        _status = _NOT_ENTERED;
-    }
 }
 
 interface IMinter {
@@ -131,8 +68,8 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
         MINTER = minter;
     }
 
-    function setStakerAddress(address minter) public onlyOwner {
-        MINTER = minter;
+    function setStakerAddress(address staker) public onlyOwner {
+        STAKER = staker;
     }
 
     function createDistributionCycle(uint amount) external {
@@ -147,25 +84,62 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
         );
     }
 
-    function claim(uint tokenId) public {
-        require(tokenId <= IMinter(MINTER).TOKEN_ID(), "EZ: invalid token id");
-        require(tokenId <= distributionCycles[CYCLE_COUNT].lastTokenId, "EZ: not eligible for claim yet");
-        uint index = lastClaimed[tokenId];
-        if (index < 1) {
-            // Handling starting edge case because there is no cycle at 0
-            index += 1;
-        }
-        uint zmbeAmount;
+    function calculateEarnings(uint tokenId) public view returns (uint) {
+        uint index = lastClaimed[tokenId]; // 1
+        uint zmbeAmount = 0;
+        if (index == CYCLE_COUNT) {
+            // it means user has already claimed till this cycle, so, returning zero to avoid exception
+            return zmbeAmount;
+        } //  1      1 < 2 (true) ; + on next iteration
         for (index; index <= CYCLE_COUNT; index++) {
-            zmbeAmount += distributionCycles[index].distributionAmount;
+            // Handling starting edge case because there is no cycle at 0
+            if (index > 0) {
+                // check if token id was minted before cycle creation
+                if (tokenId <= distributionCycles[index].lastTokenId) {
+                    // check if the token id hasn't claimed already for this cycle iteration
+                    if (lastClaimed[tokenId] < index) {
+                        zmbeAmount += distributionCycles[index].distributionAmount;
+                    }
+                }
+            }
         }
+        return zmbeAmount;
+    }
+
+    function claim(uint tokenId) public {
+        require(msg.sender == IMinter(MINTER).ownerOf(tokenId), "EZ: not your token");
+        // check if token ids doesn't exceed total supply of EZ
+        require(tokenId <= IMinter(MINTER).TOKEN_ID(), "EZ: invalid token id");
+        // check if token id is less than or equal to current distribution cycles last token id, if its more than that , then
+        // this token id will be rewarded on next cycle because the token was minted after creation of the current distribution cycle
+        require(tokenId <= distributionCycles[CYCLE_COUNT].lastTokenId, "EZ: not eligible for claim yet");
+        uint zmbeAmount = calculateEarnings(tokenId);
+        require(zmbeAmount > 0, "EZ: not enough to claim");
+        // set last claimed cycle as current one to avoid reclaiming all tokens again
         lastClaimed[tokenId] = CYCLE_COUNT;
         sendZmbe(IMinter(MINTER).ownerOf(tokenId), zmbeAmount);
-        updateTotalZmbeDistributed(zmbeAmount);
+    }
+
+    function claimAll() public {
+        require(IMinter(MINTER).balanceOf(msg.sender) > 0, "EZ: Not an EZ holder");
+        uint ezBalance = IMinter(MINTER).balanceOf(msg.sender);
+        uint zmbeAmount = 0;
+        for (uint index = 0; index < ezBalance; index++) {
+            uint tokenId = IMinter(MINTER).tokenOfOwnerByIndex(msg.sender, index);
+            uint zmbeEarned = calculateEarnings(tokenId);
+            // there is a chance that > 1 token holders might claim individual tokens first and then call this function to claim the rest
+            if (zmbeEarned > 0) {
+                zmbeAmount += zmbeEarned;
+                lastClaimed[tokenId] = CYCLE_COUNT;
+            }
+        }
+        require(zmbeAmount > 0, "EZ: not enough to claim");
+        sendZmbe(msg.sender, zmbeAmount);
     }
 
     function sendZmbe(address _address, uint amount) private {
         IBEP20(ZMBE).transfer(_address, amount);
+        updateTotalZmbeDistributed(amount);
     }
 
     function updateTotalZmbeDistributed(uint amount) private {
