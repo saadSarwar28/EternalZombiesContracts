@@ -73,7 +73,7 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
     }
 
     function createDistributionCycle(uint amount) external {
-        require(msg.sender == STAKER || msg.sender == owner());
+        require(msg.sender == STAKER || msg.sender == owner(), "EZ: not owner");
         CYCLE_COUNT += 1;
         uint lastTokenId = IMinter(MINTER).TOKEN_ID();
         distributionCycles[CYCLE_COUNT] = DistributionCycle(

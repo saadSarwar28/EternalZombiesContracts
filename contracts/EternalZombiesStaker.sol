@@ -82,6 +82,10 @@ interface IDistributor {
     function createDistributionCycle(uint amount) external;
 }
 
+interface INftDistributor {
+    function setRewardedTokenId(uint tokenId) external;
+}
+
 contract EternalZombiesStaker is Ownable, ReentrancyGuard {
 
     using Percentages for uint;
@@ -121,7 +125,8 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         address lp_tokens,
         address tombOverlay,
         uint restakePercentage,
-        uint fundingWalletPercentage
+        uint fundingWalletPercentage,
+        uint burnPercentage
     ) {
         WRAPPED_BNB = wBNB;
         ZMBE = zmbe;
@@ -132,6 +137,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         TOMB_OVERLAY = tombOverlay;
         RESTAKE_PERCENTAGE = restakePercentage;
         FUNDING_WALLET_PERCENTAGE = fundingWalletPercentage;
+        BURN_PERCENTAGE = burnPercentage;
     }
 
     function setDistributor(address distributor) public onlyOwner() {
@@ -305,6 +311,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
 
     function sendRewardedNft(address tokenAddress) public onlyOwner() {
         IERC721(tokenAddress).transferFrom(address(this), NFT_DISTRIBUTOR, REWARD_TOKEN_ID);
+        INftDistributor(NFT_DISTRIBUTOR).setRewardedTokenId(REWARD_TOKEN_ID);
     }
 
     fallback() external payable {}
