@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * @title EternalZombiesMinter
+ * @title EternalZombies
  * @author : saad sarwar
  */
 
-pragma solidity ^0.8.4;
 
+pragma solidity ^0.8.4;
 
 import "openzeppelin-solidity/contracts/access/Ownable.sol";
 import "openzeppelin-solidity/contracts/token/ERC721/extensions/ERC721Enumerable.sol";

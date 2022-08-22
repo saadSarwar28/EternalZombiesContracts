@@ -69,7 +69,7 @@ contract EternalZombiesNftLottery is Ownable, ReentrancyGuard, VRFConsumerBase {
 
     // Function to request a random number from Chainlink VRF for current distribution
     function requestRandomNumber() public nonReentrant() {
-        require(LINK.balanceOf(address(this)) >= linkFee, "LINK balance not enough");
+        require(LINK.balanceOf(address(this)) >= linkFee, "EZ: LINK balance not enough");
         requestId = requestRandomness(keyHash, linkFee);
     }
 
@@ -85,7 +85,7 @@ contract EternalZombiesNftLottery is Ownable, ReentrancyGuard, VRFConsumerBase {
     }
 
     function setRewardedTokenId(uint tokenId) public {
-        require(msg.sender == STAKER || msg.sender == owner(), "EZ: not owner");
+        require(msg.sender == STAKER || msg.sender == owner(), "EZ: invalid msg.sender");
         REWARDED_TOKEN_ID = tokenId;
     }
 

@@ -7,9 +7,90 @@
 pragma solidity ^0.8.4;
 
 
-import "openzeppelin-solidity/contracts/access/Ownable.sol";
-import "openzeppelin-solidity/contracts/security/ReentrancyGuard.sol";
-import "./Percentages.sol";
+abstract contract Context {
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
+
+    function _msgData() internal view virtual returns (bytes calldata) {
+        return msg.data;
+    }
+}
+
+abstract contract Ownable is Context {
+    address private _owner;
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    constructor() {
+        _transferOwnership(_msgSender());
+    }
+
+    function owner() public view virtual returns (address) {
+        return _owner;
+    }
+
+    modifier onlyOwner() {
+        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+        _;
+    }
+
+    function renounceOwnership() public virtual onlyOwner {
+        _transferOwnership(address(0));
+    }
+
+    function transferOwnership(address newOwner) public virtual onlyOwner {
+        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        _transferOwnership(newOwner);
+    }
+
+    function _transferOwnership(address newOwner) internal virtual {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+    }
+}
+
+abstract contract ReentrancyGuard {
+    uint256 private constant _NOT_ENTERED = 1;
+    uint256 private constant _ENTERED = 2;
+
+    uint256 private _status;
+
+    constructor() {
+        _status = _NOT_ENTERED;
+    }
+
+    modifier nonReentrant() {
+        require(_status != _ENTERED, "ReentrancyGuard: reentrant call");
+        _status = _ENTERED;
+        _;
+
+        _status = _NOT_ENTERED;
+    }
+}
+
+library Percentages {
+    // Get value of a percent of a number
+    function calcPortionFromBasisPoints(uint _amount, uint _basisPoints) public pure returns(uint) {
+        if(_basisPoints == 0 || _amount == 0) {
+            return 0;
+        } else {
+            uint _portion = _amount * _basisPoints / 10000;
+            return _portion;
+        }
+    }
+
+    // Get basis points (percentage) of _portion relative to _amount
+    function calcBasisPoints(uint _amount, uint  _portion) public pure returns(uint) {
+        if(_portion == 0 || _amount == 0) {
+            return 0;
+        } else {
+            uint _basisPoints = (_portion * 10000) / _amount;
+            return _basisPoints;
+        }
+    }
+}
 
 interface IERC721 {
     function transferFrom(address from, address to, uint256 tokenId) external;
