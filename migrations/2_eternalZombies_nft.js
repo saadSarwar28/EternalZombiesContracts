@@ -20,7 +20,7 @@ const pancakeLP = '0x4DBaf6479F0Afa9f03C2A7D611151Fa5b53ECdC8'
 const tombOverlay = '0x2974b990787aeC9fAAf4f210F841095389768A5D'
 const reStakingPercentage = 10
 const burnPercentage = 2
-const devPercentage = 5
+const devPercentage = 3
 
 
 module.exports = async function (deployer) {
