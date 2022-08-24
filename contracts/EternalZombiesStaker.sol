@@ -94,6 +94,8 @@ library Percentages {
 
 interface IERC721 {
     function transferFrom(address from, address to, uint256 tokenId) external;
+    function ownerOf(uint256 tokenId) external returns (address);
+    function TOKEN_ID() external view returns (uint);
 }
 
 interface IBEP20 {
@@ -106,7 +108,6 @@ interface IBEP20 {
         uint256 amount
     ) external returns (bool);
 }
-
 
 interface IPancakeSwapRouter {
     function getAmountsOut(uint amountIn, address[] memory path) external returns (uint[] memory amounts);
@@ -164,8 +165,9 @@ interface IDistributor {
     function createDistributionCycle(uint amount) external;
 }
 
-interface INftDistributor {
-    function setRewardedTokenId(uint tokenId) external;
+interface IRandomNumGenerator {
+    function requestRandomNumber() external returns(bytes32 requestId);
+    function result(bytes32) external returns(uint256);
 }
 
 contract EternalZombiesStaker is Ownable, ReentrancyGuard {
@@ -183,11 +185,13 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
     address public ZMBE;
     address public WRAPPED_BNB;
     address public PANCAKE_ROUTER;
+    address public MINTER;
     address public DISTRIBUTOR;
-    address public NFT_DISTRIBUTOR;
+    address public RANDOM_NUMBER_GENERATOR;
     address public DR_FRANKENSTEIN;
     address public PANCAKE_LP_TOKEN;
     address public TOMB_OVERLAY;
+    address public WINNER;
 
     uint public RESTAKE_PERCENTAGE;
     uint public FUNDING_WALLET_PERCENTAGE;
@@ -197,12 +201,17 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
 
     uint public REWARD_TOKEN_ID;
     uint public REWARD_TOKEN_RARITY;
+    uint public TOTAL_NFTS_DISTRIBUTED;
+
+    bytes32 public requestId;
 
     constructor(
         address wBNB,
         address zmbe,
         address router,
+        address minter,
         address distributor,
+        address randomNumberGenerator,
         address drFrankenstein,
         address lp_tokens,
         address tombOverlay,
@@ -213,13 +222,19 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         WRAPPED_BNB = wBNB;
         ZMBE = zmbe;
         PANCAKE_ROUTER = router;
+        MINTER = minter;
         DISTRIBUTOR = distributor;
+        RANDOM_NUMBER_GENERATOR = randomNumberGenerator;
         DR_FRANKENSTEIN = drFrankenstein;
         PANCAKE_LP_TOKEN = lp_tokens;
         TOMB_OVERLAY = tombOverlay;
         RESTAKE_PERCENTAGE = restakePercentage;
         FUNDING_WALLET_PERCENTAGE = fundingWalletPercentage;
         BURN_PERCENTAGE = burnPercentage;
+    }
+
+    function setMinterAddress(address minter) public onlyOwner {
+        MINTER = minter;
     }
 
     function setDistributor(address distributor) public onlyOwner() {
@@ -242,8 +257,8 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         TOMB_OVERLAY = tombOverlay;
     }
 
-    function setNFTDistributor(address distributor) public onlyOwner() {
-        NFT_DISTRIBUTOR = distributor;
+    function setRandomNumGenerator(address generator) public onlyOwner() {
+        RANDOM_NUMBER_GENERATOR = generator;
     }
 
     function adjustRestakePercentage(uint percentage) public onlyOwner() {
@@ -318,7 +333,8 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         IDrFrankenstein(DR_FRANKENSTEIN).withdraw(POOL_ID, 0);
     }
 
-    function claimAndRestake() public onlyOwner() {
+    function compoundAndDistribute() public {
+        require(msg.sender == owner() || msg.sender == DISTRIBUTOR, "EZ: not owner or ditributor");
         harvest();
         uint balance = IBEP20(ZMBE).balanceOf(address(this));
         uint forDev = (balance / 100) * FUNDING_WALLET_PERCENTAGE;
@@ -389,11 +405,15 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
         (uint rarity, uint tokenId) = ITombOverlay(TOMB_OVERLAY).finishMinting(POOL_ID);
         REWARD_TOKEN_ID = tokenId;
         REWARD_TOKEN_RARITY = rarity;
+        requestId = IRandomNumGenerator(RANDOM_NUMBER_GENERATOR).requestRandomNumber();
     }
 
     function sendRewardedNft(address tokenAddress) public onlyOwner() {
-        IERC721(tokenAddress).transferFrom(address(this), NFT_DISTRIBUTOR, REWARD_TOKEN_ID);
-        INftDistributor(NFT_DISTRIBUTOR).setRewardedTokenId(REWARD_TOKEN_ID);
+        uint randomNumber = IRandomNumGenerator(RANDOM_NUMBER_GENERATOR).result(requestId);
+        require(randomNumber != 0, "EZ: random number not set");
+        WINNER = IERC721(MINTER).ownerOf(randomNumber % (IERC721(MINTER).TOKEN_ID()));
+        IERC721(tokenAddress).transferFrom(address(this), WINNER, REWARD_TOKEN_ID);
+        TOTAL_NFTS_DISTRIBUTED += 1;
     }
 
     fallback() external payable {}

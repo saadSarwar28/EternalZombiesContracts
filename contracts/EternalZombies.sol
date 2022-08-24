@@ -22,7 +22,7 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
 
     uint public TOKEN_ID;
 
-    uint256 public MAX_SUPPLY;
+    uint256 public MAX_SUPPLY = 1111;
 
     uint256 public nftPrice = 200_000_000_000_000_000; // 0.2 BNB
 
@@ -36,7 +36,11 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
 
     address public STAKER;
 
-    uint public ALLOCATED_FOR_TEAM;
+    address payable public DESIGNER;
+
+    uint public ALLOCATED_FOR_TEAM = 111;
+
+    uint public DESIGNER_PERCENTAGE = 2;
 
     uint public TEAM_COUNT;
 
@@ -48,10 +52,8 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
 
     bytes32 public merkleRoot;
 
-    constructor(uint256 maxNftSupply, address staker, uint forTeam) ERC721("Eternal Zombies", "EZ") {
-        MAX_SUPPLY = maxNftSupply;
-        STAKER = staker;
-        ALLOCATED_FOR_TEAM = forTeam;
+    constructor(address payable designer) ERC721("Eternal Zombies", "EZ") {
+        DESIGNER = designer;
     }
 
     function setMerkleRoot(bytes32 _merkleRoot) public onlyOwner {
@@ -60,6 +62,10 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
 
     function setStakerAddress(address staker) public onlyOwner {
         STAKER = staker;
+    }
+
+    function setDesignerAddress(address payable designer) public onlyOwner {
+        DESIGNER = designer;
     }
 
     function setSalePrice(uint price) public onlyOwner() {
@@ -97,22 +103,26 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
     function whitelistMint(bytes32[] calldata _merkleProof) public payable nonReentrant {
         require(whitelistActive && whitelistPrice > 0, "Whitelist not active yet.");
         require(TOKEN_ID < MAX_SUPPLY, "Mint exceeds limits");
-        require(STAKER != address(0), 'Staking contract address not set');
+        require(STAKER != address(0), "Staking contract address not set");
         require(!whitelistClaimed[msg.sender], "Already Claimed");
         require(msg.value >= whitelistPrice, "Not enough balance");
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
         require(MerkleProof.verify(_merkleProof, merkleRoot, leaf), "Invalid Proof");
-        require(IStaker(STAKER).deposit{value: msg.value}(), "Staking Failure");
+        uint forDesigner = (msg.value / 100) * DESIGNER_PERCENTAGE;
+        DESIGNER.transfer(forDesigner);
+        require(IStaker(STAKER).deposit{value: (msg.value - forDesigner)}(), "Staking Failure");
         whitelistClaimed[msg.sender] = true;
         mintFor(msg.sender);
     }
 
     function mint(uint amount) public payable nonReentrant() {
         require(nftPrice != 0, "Minting price not set yet");
-        require(STAKER != address(0), 'Staking contract address not set');
+        require(STAKER != address(0), "Staking contract address not set");
         require(saleIsActive, "Sale must be active to mint nft");
         require(msg.value >= nftPrice * amount, "Not enough balance");
-        require(IStaker(STAKER).deposit{value: msg.value}(), "Staking Failure");
+        uint forDesigner = (msg.value / 100) * DESIGNER_PERCENTAGE;
+        DESIGNER.transfer(forDesigner);
+        require(IStaker(STAKER).deposit{value: (msg.value - forDesigner)}(), "Staking Failure");
         require((TOKEN_ID + amount) <= MAX_SUPPLY, "Purchase would exceed max supply of NFTs");
         for (uint index = 0; index < amount; index++) {
             mintFor(msg.sender);

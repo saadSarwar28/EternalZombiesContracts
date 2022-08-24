@@ -11,6 +11,8 @@ const EternalZombiesNftDistributor = artifacts.require('EternalZombiesNftLottery
 // first testmint trx https://bscscan.com/tx/0xc52ee020a6555c5db083685934d55ce9d3ce37ac5d94c0b468d36e719f86c7c6
 
 // Main net
+// MINTER
+const designer = '0xA97F7EB14da5568153Ea06b2656ccF7c338d942f' // replace it with CJs address
 // Staker
 const wrappedBNB = '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c'
 const zmbe = '0x50ba8bf9e34f0f83f96a340387d1d3888ba4b3b5'
@@ -25,32 +27,32 @@ const devPercentage = 3
 
 module.exports = async function (deployer) {
 
-    // await deployer.deploy(EternalZombiesMinter, "0x4DBaf6479F0Afa9f03C2A7D611151Fa5b53ECdC8"); // invalid staker address, change it later
-    // await EternalZombiesMinter.deployed();
+    await deployer.deploy(EternalZombiesMinter, designer); // invalid staker address, change it later
+    await EternalZombiesMinter.deployed();
 
 
     // await deployer.deploy(EternalZombiesDistributor, zmbe)
     // const Distributor = await EternalZombiesDistributor.deployed()
     //
-    await deployer.deploy(Percentages);
-    const percentages = await Percentages.deployed();
-
-    await deployer.link(Percentages, EternalZombiesStaker);
-    await deployer.deploy(EternalZombiesStaker,
-        wrappedBNB,
-        zmbe,
-        pancakeRouter,
-        "0xb256Bf0E888c34FE67a4169f0A5f80AC9F9e2f6D", // invalid address , change it later
-        drFrankenstein,
-        pancakeLP,
-        tombOverlay,
-        reStakingPercentage,
-        devPercentage,
-        burnPercentage
-    )
+    // await deployer.deploy(Percentages);
+    // const percentages = await Percentages.deployed();
+    //
+    // await deployer.link(Percentages, EternalZombiesStaker);
+    // await deployer.deploy(EternalZombiesStaker,
+    //     wrappedBNB,
+    //     zmbe,
+    //     pancakeRouter,
+    //     "0xb256Bf0E888c34FE67a4169f0A5f80AC9F9e2f6D", // invalid address , change it later
+    //     drFrankenstein,
+    //     pancakeLP,
+    //     tombOverlay,
+    //     reStakingPercentage,
+    //     devPercentage,
+    //     burnPercentage
+    // )
     // const Staker = await EternalZombiesStaker.deployed()
-    Staker.getLPApproved()
-    Staker.getZMBEApproved()
+    // Staker.getLPApproved()
+    // Staker.getZMBEApproved()
     // await deployer.deploy(EternalZombiesMinter, maxSupply, Staker.address, forTeam)
 
 };
