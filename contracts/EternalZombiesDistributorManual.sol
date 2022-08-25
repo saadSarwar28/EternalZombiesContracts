@@ -85,43 +85,34 @@ interface IMinter {
     function ownerOf(uint256 tokenId) external returns (address);
     function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256 tokenId);
     function totalSupply() external returns (uint256);
-    function TOKEN_ID() external view returns (uint);
+    function TOKEN_ID() external returns (uint);
 }
 
-interface IStaker {
-    function compoundAndDistribute() external;
-}
-
-interface IDrFrankenstein {
-    function pendingZombie(uint256 _pid, address _user) external view returns (uint256);
-}
-
-contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
+contract EternalZombiesDistributorManual is Ownable, ReentrancyGuard {
 
     address public ZMBE;
     address public MINTER;
     address public STAKER;
-    address public DR_FRANKENSTEIN;
 
     uint public TOTAL_ZMBE_DISTRIBUTED;
 
-    uint public POOL_ID = 11;
     uint public CYCLE_COUNT; // total cycle count, starts from one
-    uint public CYCLE_DURATION = 86400 * 10; // 10 DAYS
-    uint public CONTRACT_CREATED_AT;
 
     struct DistributionCycle {
         uint amountReceived; // total zmbe received for this cycle
         uint lastTokenId; // tokens ids less than or equal to eligible to claim this cycle amount
         uint distributionAmount; // zmbe to distribute for each token
-        uint createdAt; // creation timestamp of this cycle
+        uint timeStamp; // creation timestamp of this cycle
     }
 
     // mapping to keep track of each cycle, latest ID is the CYCLE_COUNT
     mapping (uint => DistributionCycle) public distributionCycles;
 
+    // mapping from token id to last claimed at timestamp
+    mapping (uint => uint) public lastClaimedTimestamp;
+
     // mapping from token id to last cycle claimed
-    mapping (uint => uint) public lastCycleClaimed;
+    mapping (uint => uint) public lastClaimed;
 
     constructor(
         address minter,
@@ -131,7 +122,6 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
         MINTER = minter;
         ZMBE = zmbe;
         STAKER = staker;
-        CONTRACT_CREATED_AT = block.timestamp;
     }
 
     function setMinterAddress(address minter) public onlyOwner {
@@ -140,10 +130,6 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
 
     function setStakerAddress(address staker) public onlyOwner {
         STAKER = staker;
-    }
-
-    function setCycleDuration(uint duration) public onlyOwner {
-        CYCLE_DURATION = duration;
     }
 
     function createDistributionCycle(uint amount) external {
@@ -159,10 +145,10 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
     }
 
     function calculateEarnings(uint tokenId) public view returns (uint) {
-        uint index = lastCycleClaimed[tokenId];
+        uint index = lastClaimed[tokenId]; // 1
         uint zmbeAmount = 0;
         if (index == CYCLE_COUNT) {
-            // it means user has already claimed till this cycle, so, returning zero
+            // it means user has already claimed till this cycle, so, returning zero to avoid exception
             return zmbeAmount;
         }
         for (index; index <= CYCLE_COUNT; index++) {
@@ -171,37 +157,13 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
                 // check if token id was minted before cycle creation
                 if (tokenId <= distributionCycles[index].lastTokenId) {
                     // check if the token id hasn't claimed already for this cycle iteration
-                    if (lastCycleClaimed[tokenId] < index) {
+                    if (lastClaimed[tokenId] < index) {
                         zmbeAmount += distributionCycles[index].distributionAmount;
                     }
                 }
             }
         }
         return zmbeAmount;
-    }
-
-    // for frontend, if a cycle hasn't been created after 14 days then use this function to calculate pending earnings.
-    function calculateMissingCycleEarnings() public view returns(uint amount) {
-        if (block.timestamp > (CONTRACT_CREATED_AT + CYCLE_DURATION)) {
-            // if the user hasn't claimed since last cycle duration and distribution cycle hasn't been created yet too
-            if (block.timestamp > (distributionCycles[CYCLE_COUNT].createdAt + CYCLE_DURATION)) {
-                return IDrFrankenstein(DR_FRANKENSTEIN).pendingZombie(POOL_ID, STAKER) / IMinter(MINTER).TOKEN_ID();
-            }
-        }
-        return 0;
-    }
-
-    // a distribution cycle can be created through the Staking contract, because the Staker knows how much its sending but the
-    // distributor doesn't know how much its receiving
-    // a distribution cycle will only be created if cycle creation is due
-    function triggerCycleCreation() public {
-        // check if its past first cycle duration
-        if (block.timestamp > (CONTRACT_CREATED_AT + CYCLE_DURATION)) {
-            // check if it has been more than cycle duration since last cycle created
-            if (block.timestamp > (distributionCycles[CYCLE_COUNT].createdAt + CYCLE_DURATION)) {
-                IStaker(STAKER).compoundAndDistribute();
-            }
-        }
     }
 
     function claim(uint tokenId) public nonReentrant {
@@ -211,26 +173,23 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
         // check if token id is less than or equal to current distribution cycles last token id, if its more than that , then
         // this token id will be rewarded on next cycle because the token was minted after creation of the current distribution cycle
         require(tokenId <= distributionCycles[CYCLE_COUNT].lastTokenId, "EZ: not eligible for claim yet");
-        triggerCycleCreation();
         uint zmbeAmount = calculateEarnings(tokenId);
-        // if a user has already claimed till this cycle, then zmbeAmount will be zero
         require(zmbeAmount > 0, "EZ: not enough to claim");
         // set last claimed cycle as current one to avoid reclaiming all tokens again
-        lastCycleClaimed[tokenId] = CYCLE_COUNT;
+        lastClaimed[tokenId] = CYCLE_COUNT;
         sendZmbe(IMinter(MINTER).ownerOf(tokenId), zmbeAmount);
     }
 
     function claimAll() public nonReentrant {
+        require(IMinter(MINTER).balanceOf(msg.sender) > 0, "EZ: Not an EZ holder");
         uint ezBalance = IMinter(MINTER).balanceOf(msg.sender);
-        require(ezBalance > 0, "EZ: Not an EZ holder");
         uint zmbeAmount = 0;
         for (uint index = 0; index < ezBalance; index++) {
             uint tokenId = IMinter(MINTER).tokenOfOwnerByIndex(msg.sender, index);
-            triggerCycleCreation();
             uint zmbeEarned = calculateEarnings(tokenId);
             if (zmbeEarned > 0) {
                 zmbeAmount += zmbeEarned;
-                lastCycleClaimed[tokenId] = CYCLE_COUNT;
+                lastClaimed[tokenId] = CYCLE_COUNT;
             }
         }
         require(zmbeAmount > 0, "EZ: not enough to claim");

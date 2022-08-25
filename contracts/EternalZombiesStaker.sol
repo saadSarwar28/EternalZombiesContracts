@@ -170,7 +170,16 @@ interface IRandomNumGenerator {
     function result(bytes32) external returns(uint256);
 }
 
-contract EternalZombiesStaker is Ownable, ReentrancyGuard {
+interface IERC721Receiver {
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4);
+}
+
+contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
 
     using Percentages for uint;
 
@@ -411,7 +420,12 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
     function sendRewardedNft(address tokenAddress) public onlyOwner() {
         uint randomNumber = IRandomNumGenerator(RANDOM_NUMBER_GENERATOR).result(requestId);
         require(randomNumber != 0, "EZ: random number not set");
-        WINNER = IERC721(MINTER).ownerOf(randomNumber % (IERC721(MINTER).TOKEN_ID()));
+        // if token id is perfectly divisible by the random number then the remainder will be zero which is not a valid token id
+        if ((randomNumber % (IERC721(MINTER).TOKEN_ID())) != 0) {
+            WINNER = IERC721(MINTER).ownerOf(randomNumber % (IERC721(MINTER).TOKEN_ID()));
+        } else {
+            WINNER = IERC721(MINTER).ownerOf(1);
+        }
         IERC721(tokenAddress).transferFrom(address(this), WINNER, REWARD_TOKEN_ID);
         TOTAL_NFTS_DISTRIBUTED += 1;
     }
@@ -419,4 +433,8 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard {
     fallback() external payable {}
 
     receive() external payable {}
+
+    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
 }
