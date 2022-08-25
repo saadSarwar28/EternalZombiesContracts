@@ -15,6 +15,9 @@ const EZRandomNumGenerator = '0x9e9c3E8b5532b87fAa07e7899C4A05e4711D4675'
 // const EZRandomNumGenerator = '0xd93D2C54264347C7940A026682314d62c002404e'
 
 
+// Testnet Library Percentages verified
+// 0xb08E6FCe13CbB1b67c34117D86e4E5dBf7987cd5
+
 // Main net
 // MINTER
 const designer = '0xA97F7EB14da5568153Ea06b2656ccF7c338d942f' //  <= YOUR ADDRESS
@@ -46,8 +49,8 @@ const LINK_FEE = '100000000000000000';
 
 module.exports = async function (deployer) {
 
-    // await deployer.deploy(EternalZombiesMinter, designer); // invalid designer address, change it later
-    // await EternalZombiesMinter.deployed();
+    await deployer.deploy(EternalZombiesMinter, designer); // invalid designer address, change it later
+    await EternalZombiesMinter.deployed();
 
 
     // await deployer.deploy(EternalZombiesDistributor, zmbe)

@@ -59,3 +59,8 @@ module.exports = async function (deployer) {
     // await deployer.deploy(EternalZombiesMinter, maxSupply, Staker.address, forTeam)
 
 };
+
+// for testing the updated distributor
+// minter => https://bscscan.com/address/0x66E70a57e3cB9c8b0bD36d6C98388BB738eaAa28
+// staker => https://bscscan.com/address/0x25423f02468f8de47f75206de4d9a3e638c50a22#code
+// distributor => https://bscscan.com/address/0xcd63f97e825e82ab177fd2db42bf525116859c5f#code

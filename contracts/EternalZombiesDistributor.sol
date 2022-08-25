@@ -108,7 +108,7 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
     uint public POOL_ID = 11;
     uint public CYCLE_COUNT; // total cycle count, starts from one
     uint public CYCLE_DURATION = 86400 * 14; // 14 DAYS
-    uint public CONTRACT_CREATED_AT;
+    uint public CYCLE_STARTS_FROM;
 
     struct DistributionCycle {
         uint amountReceived; // total tokens received for this cycle
@@ -126,12 +126,13 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
     constructor(
         address minter,
         address zmbe,
-        address staker
+        address staker,
+        address drFrankenstein
     ) {
         MINTER = minter;
         ZMBE = zmbe;
         STAKER = staker;
-        CONTRACT_CREATED_AT = block.timestamp;
+        DR_FRANKENSTEIN = drFrankenstein;
     }
 
     function setMinterAddress(address minter) public onlyOwner {
@@ -142,8 +143,17 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
         STAKER = staker;
     }
 
+    function setDrFrankenstein(address drFrankenstein) public onlyOwner {
+        DR_FRANKENSTEIN = drFrankenstein;
+    }
+
     function setCycleDuration(uint duration) public onlyOwner {
         CYCLE_DURATION = duration;
+    }
+
+    function setCycleStart() public {
+        require(msg.sender == MINTER || msg.sender == owner(), "EZ: not owner");
+        CYCLE_STARTS_FROM = block.timestamp;
     }
 
     function createDistributionCycle(uint amount) external {
@@ -182,7 +192,7 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
 
     // for frontend, if a cycle hasn't been created after 14 days then use this function to calculate pending earnings.
     function calculateMissingCycleEarnings() public view returns(uint amount) {
-        if (block.timestamp > (CONTRACT_CREATED_AT + CYCLE_DURATION)) {
+        if (block.timestamp > (CYCLE_STARTS_FROM + CYCLE_DURATION)) {
             // if the user hasn't claimed since last cycle duration and distribution cycle hasn't been created yet too
             if (block.timestamp > (distributionCycles[CYCLE_COUNT].createdAt + CYCLE_DURATION)) {
                 return IDrFrankenstein(DR_FRANKENSTEIN).pendingZombie(POOL_ID, STAKER) / IMinter(MINTER).TOKEN_ID();
@@ -196,7 +206,7 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
     // a distribution cycle will only be created if cycle creation is due
     function triggerCycleCreation() public {
         // check if its past first cycle duration
-        if (block.timestamp > (CONTRACT_CREATED_AT + CYCLE_DURATION)) {
+        if (block.timestamp > (CYCLE_STARTS_FROM + CYCLE_DURATION)) {
             // check if it has been more than cycle duration since last cycle created
             if (block.timestamp > (distributionCycles[CYCLE_COUNT].createdAt + CYCLE_DURATION)) {
                 IStaker(STAKER).compoundAndDistribute();

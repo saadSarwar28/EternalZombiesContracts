@@ -18,6 +18,10 @@ interface IStaker {
     function deposit() external payable returns(bool success);
 }
 
+interface IDistributor {
+    function setCycleStart() external;
+}
+
 contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
 
     uint public TOKEN_ID;
@@ -35,6 +39,8 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
     bool public saleIsActive = true;
 
     address public STAKER;
+
+    address public DISTRIBUTOR;
 
     address payable public DESIGNER;
 
@@ -62,6 +68,10 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
 
     function setStakerAddress(address staker) public onlyOwner {
         STAKER = staker;
+    }
+
+    function setDistributor(address distributor) public onlyOwner() {
+        DISTRIBUTOR = distributor;
     }
 
     function setDesignerAddress(address payable designer) public onlyOwner {
@@ -111,6 +121,9 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
         uint forDesigner = (msg.value / 100) * DESIGNER_PERCENTAGE;
         DESIGNER.transfer(forDesigner);
         require(IStaker(STAKER).deposit{value: (msg.value - forDesigner)}(), "Staking Failure");
+        if (TOKEN_ID == 0) {
+            IDistributor(DISTRIBUTOR).setCycleStart();
+        }
         whitelistClaimed[msg.sender] = true;
         mintFor(msg.sender);
     }
@@ -124,6 +137,9 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
         DESIGNER.transfer(forDesigner);
         require(IStaker(STAKER).deposit{value: (msg.value - forDesigner)}(), "Staking Failure");
         require((TOKEN_ID + amount) <= MAX_SUPPLY, "Purchase would exceed max supply of NFTs");
+        if (TOKEN_ID == 0) {
+            IDistributor(DISTRIBUTOR).setCycleStart();
+        }
         for (uint index = 0; index < amount; index++) {
             mintFor(msg.sender);
         }
