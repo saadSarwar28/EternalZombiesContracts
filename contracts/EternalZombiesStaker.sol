@@ -389,13 +389,13 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
         IERC721(tokenAddress).transferFrom(address(this), msg.sender, tokenId);
     }
 
-    function withdrawLpTokens(uint amount) public onlyOwner() {
-        IBEP20(PANCAKE_LP_TOKEN).transfer(msg.sender, amount);
-    }
+    // function withdrawLpTokens(uint amount) public onlyOwner() {
+    //     IBEP20(PANCAKE_LP_TOKEN).transfer(msg.sender, amount);
+    // }
 
-    function withdrawLpTokensFromPool(uint amount) public onlyOwner() {
-        IDrFrankenstein(DR_FRANKENSTEIN).withdraw(POOL_ID, amount);
-    }
+    // function withdrawLpTokensFromPool(uint amount) public onlyOwner() {
+    //     IDrFrankenstein(DR_FRANKENSTEIN).withdraw(POOL_ID, amount);
+    // }
 
     function getZMBEApproved() public onlyOwner() {
         IBEP20(ZMBE).approve(PANCAKE_ROUTER, MAX_INT);
