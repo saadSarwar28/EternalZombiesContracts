@@ -13,6 +13,7 @@ const EZRandomNumGenerator = '0x9e9c3E8b5532b87fAa07e7899C4A05e4711D4675'
 
 // Testnet
 // const EZRandomNumGenerator = '0xd93D2C54264347C7940A026682314d62c002404e'
+// https://testnet.bscscan.com/address/0xd93D2C54264347C7940A026682314d62c002404e#code
 
 
 // Testnet Library Percentages verified

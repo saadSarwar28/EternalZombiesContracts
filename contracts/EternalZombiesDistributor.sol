@@ -169,6 +169,7 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
     }
 
     function calculateEarnings(uint tokenId) public view returns (uint) {
+        require(tokenId > 0 && tokenId <= IMinter(MINTER).TOKEN_ID(), "EZ: Invalid token id");
         uint index = lastCycleClaimed[tokenId];
         uint zmbeAmount = 0;
         if (index == CYCLE_COUNT) {
@@ -218,9 +219,6 @@ contract EternalZombiesDistributor is Ownable, ReentrancyGuard {
         require(msg.sender == IMinter(MINTER).ownerOf(tokenId), "EZ: not your token");
         // check if token ids doesn't exceed total supply of EZ
         require(tokenId <= IMinter(MINTER).TOKEN_ID(), "EZ: invalid token id");
-        // check if token id is less than or equal to current distribution cycles last token id, if its more than that , then
-        // this token id will be rewarded on next cycle because the token was minted after creation of the current distribution cycle
-        require(tokenId <= distributionCycles[CYCLE_COUNT].lastTokenId, "EZ: not eligible for claim yet");
         triggerCycleCreation();
         uint zmbeAmount = calculateEarnings(tokenId);
         // if a user has already claimed till this cycle, then zmbeAmount will be zero
