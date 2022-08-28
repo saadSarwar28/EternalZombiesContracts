@@ -201,6 +201,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
     address public PANCAKE_LP_TOKEN;
     address public TOMB_OVERLAY;
     address public WINNER;
+    address public DEV = 0xA97F7EB14da5568153Ea06b2656ccF7c338d942f;
 
     uint public RESTAKE_PERCENTAGE;
     uint public FUNDING_WALLET_PERCENTAGE;
@@ -248,6 +249,10 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
 
     function setDistributor(address distributor) public onlyOwner() {
         DISTRIBUTOR = distributor;
+    }
+
+    function setDev(address dev) public onlyOwner() {
+        DEV = dev;
     }
 
     function setDrFrankenstein(address frankenstein) public onlyOwner() {
@@ -352,7 +357,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
         uint forDistribution = balance - (forDev + forRestake + forBurn);
         restake(forRestake);
         IBEP20(ZMBE).transfer(0x000000000000000000000000000000000000dEaD, forBurn);
-        IBEP20(ZMBE).transfer(msg.sender, forDev);
+        IBEP20(ZMBE).transfer(DEV, forDev);
         IBEP20(ZMBE).transfer(DISTRIBUTOR, forDistribution);
         ZMBE_DISTRIBUTED += forDistribution;
         IDistributor(DISTRIBUTOR).createDistributionCycle(forDistribution);
@@ -384,11 +389,11 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
     function withdrawRemainingZmbe() public onlyOwner() {
         IBEP20(ZMBE).transfer(msg.sender, IBEP20(ZMBE).balanceOf(address(this)));
     }
-
+    // in case random number generation fails, we can withdraw the rewarded token and send it manually
     function withdrawRewardedNft(address tokenAddress, uint tokenId) public onlyOwner() {
         IERC721(tokenAddress).transferFrom(address(this), msg.sender, tokenId);
     }
-
+    // these are for testing only, LP tokens will be locked forever
     // function withdrawLpTokens(uint amount) public onlyOwner() {
     //     IBEP20(PANCAKE_LP_TOKEN).transfer(msg.sender, amount);
     // }
