@@ -111,16 +111,16 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
     }
 
     function whitelistMint(bytes32[] calldata _merkleProof) public payable nonReentrant {
-        require(whitelistActive && whitelistPrice > 0, "Whitelist not active yet.");
-        require(TOKEN_ID < MAX_SUPPLY, "Mint exceeds limits");
-        require(STAKER != address(0), "Staking contract address not set");
-        require(!whitelistClaimed[msg.sender], "Already Claimed");
-        require(msg.value >= whitelistPrice, "Not enough balance");
+        require(whitelistActive && whitelistPrice > 0, "EZ: Whitelist not active yet.");
+        require(TOKEN_ID < MAX_SUPPLY, "EZ: Mint exceeds limits");
+        require(STAKER != address(0), "EZ: Staking contract address not set");
+        require(!whitelistClaimed[msg.sender], "EZ: Already Claimed");
+        require(msg.value >= whitelistPrice, "EZ: Not enough balance");
         bytes32 leaf = keccak256(abi.encodePacked(msg.sender));
-        require(MerkleProof.verify(_merkleProof, merkleRoot, leaf), "Invalid Proof");
+        require(MerkleProof.verify(_merkleProof, merkleRoot, leaf), "EZ: Invalid Proof");
         uint forDesigner = (msg.value / 100) * DESIGNER_PERCENTAGE;
-        DESIGNER.transfer(forDesigner);
-        require(IStaker(STAKER).deposit{value: (msg.value - forDesigner)}(), "Staking Failure");
+        safeTransfer(DESIGNER, forDesigner);
+        require(IStaker(STAKER).deposit{value: (msg.value - forDesigner)}(), "EZ: Staking Failure");
         if (TOKEN_ID == 0) {
             IDistributor(DISTRIBUTOR).setCycleStart();
         }
@@ -129,14 +129,14 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
     }
 
     function mint(uint amount) public payable nonReentrant() {
-        require(nftPrice != 0, "Minting price not set yet");
-        require(STAKER != address(0), "Staking contract address not set");
-        require(saleIsActive, "Sale must be active to mint nft");
-        require(msg.value >= nftPrice * amount, "Not enough balance");
+        require(nftPrice != 0, "EZ: Minting price not set yet");
+        require(STAKER != address(0), "EZ: Staking contract address not set");
+        require(saleIsActive, "EZ: Sale must be active to mint nft");
+        require(msg.value >= nftPrice * amount, "EZ: Not enough balance");
         uint forDesigner = (msg.value / 100) * DESIGNER_PERCENTAGE;
-        DESIGNER.transfer(forDesigner);
-        require(IStaker(STAKER).deposit{value: (msg.value - forDesigner)}(), "Staking Failure");
-        require((TOKEN_ID + amount) <= MAX_SUPPLY, "Purchase would exceed max supply of NFTs");
+        safeTransfer(DESIGNER, forDesigner);
+        require(IStaker(STAKER).deposit{value: (msg.value - forDesigner)}(), "EZ: Staking Failure");
+        require((TOKEN_ID + amount) <= MAX_SUPPLY, "EZ: Purchase would exceed max supply of NFTs");
         if (TOKEN_ID == 0) {
             IDistributor(DISTRIBUTOR).setCycleStart();
         }
@@ -145,7 +145,11 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
         }
     }
 
-    // mint for function to mint an nft for a given address, can be called only by owner
+    function safeTransfer(address _recipient, uint _amount) private {
+        (bool _success, ) = _recipient.call{value: _amount}("");
+        require(_success, "EZ: BNB Transfer failed.");
+    }
+
     function mintFor(address _to) private {
         TOKEN_ID += 1;
         _safeMint(_to, TOKEN_ID);

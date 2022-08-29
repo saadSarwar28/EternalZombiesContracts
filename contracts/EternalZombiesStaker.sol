@@ -348,7 +348,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
     }
 
     function compoundAndDistribute() public {
-        require(msg.sender == owner() || msg.sender == DISTRIBUTOR, "EZ: not owner or ditributor");
+        require(msg.sender == owner() || msg.sender == DISTRIBUTOR, "EZ: not owner or distributor");
         harvest();
         uint balance = IBEP20(ZMBE).balanceOf(address(this));
         uint forDev = (balance / 100) * FUNDING_WALLET_PERCENTAGE;
