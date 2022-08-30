@@ -38,7 +38,7 @@ module.exports = {
       skipDryRun: true
     },
     bsc: {
-      provider: () => new HDWalletProvider(mnemonic, `wss://dex.binance.org/api:443`),
+      provider: () => new HDWalletProvider(mnemonic, `https://bsc-dataseed1.binance.org`),
       network_id: 56,
       confirmations: 1,
       timeoutBlocks: 200,

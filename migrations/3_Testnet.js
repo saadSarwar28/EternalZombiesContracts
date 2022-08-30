@@ -50,8 +50,8 @@ const LINK_FEE = '100000000000000000';
 
 module.exports = async function (deployer) {
 
-    await deployer.deploy(EternalZombiesMinter, designer); // invalid designer address, change it later
-    await EternalZombiesMinter.deployed();
+    // await deployer.deploy(EternalZombiesMinter, designer); // invalid designer address, change it later
+    // await EternalZombiesMinter.deployed();
 
 
     // await deployer.deploy(EternalZombiesDistributor, zmbe)

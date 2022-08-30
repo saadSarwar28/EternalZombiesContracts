@@ -121,9 +121,6 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
         uint forDesigner = (msg.value / 100) * DESIGNER_PERCENTAGE;
         safeTransfer(DESIGNER, forDesigner);
         require(IStaker(STAKER).deposit{value: (msg.value - forDesigner)}(), "EZ: Staking Failure");
-        if (TOKEN_ID == 0) {
-            IDistributor(DISTRIBUTOR).setCycleStart();
-        }
         whitelistClaimed[msg.sender] = true;
         mintFor(msg.sender);
     }
@@ -137,9 +134,6 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
         safeTransfer(DESIGNER, forDesigner);
         require(IStaker(STAKER).deposit{value: (msg.value - forDesigner)}(), "EZ: Staking Failure");
         require((TOKEN_ID + amount) <= MAX_SUPPLY, "EZ: Purchase would exceed max supply of NFTs");
-        if (TOKEN_ID == 0) {
-            IDistributor(DISTRIBUTOR).setCycleStart();
-        }
         for (uint index = 0; index < amount; index++) {
             mintFor(msg.sender);
         }
@@ -151,6 +145,9 @@ contract EternalZombies is ERC721Enumerable, Ownable, ReentrancyGuard {
     }
 
     function mintFor(address _to) private {
+        if (TOKEN_ID == 0) {
+            IDistributor(DISTRIBUTOR).setCycleStart();
+        }
         TOKEN_ID += 1;
         _safeMint(_to, TOKEN_ID);
     }

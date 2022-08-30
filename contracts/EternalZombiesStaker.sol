@@ -204,7 +204,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
     address public DEV = 0xA97F7EB14da5568153Ea06b2656ccF7c338d942f;
 
     uint public RESTAKE_PERCENTAGE;
-    uint public FUNDING_WALLET_PERCENTAGE;
+    uint public DEV_PERCENTAGE;
     uint public BURN_PERCENTAGE;
 
     uint public POOL_ID = 11;
@@ -226,7 +226,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
         address lp_tokens,
         address tombOverlay,
         uint restakePercentage,
-        uint fundingWalletPercentage,
+        uint devPercentage,
         uint burnPercentage
     ) {
         WRAPPED_BNB = wBNB;
@@ -239,7 +239,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
         PANCAKE_LP_TOKEN = lp_tokens;
         TOMB_OVERLAY = tombOverlay;
         RESTAKE_PERCENTAGE = restakePercentage;
-        FUNDING_WALLET_PERCENTAGE = fundingWalletPercentage;
+        DEV_PERCENTAGE = devPercentage;
         BURN_PERCENTAGE = burnPercentage;
     }
 
@@ -279,8 +279,8 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
         RESTAKE_PERCENTAGE = percentage;
     }
 
-    function adjustFundingWalletPercentage(uint percentage) public onlyOwner() {
-        FUNDING_WALLET_PERCENTAGE = percentage;
+    function adjustDevPercentage(uint percentage) public onlyOwner() {
+        DEV_PERCENTAGE = percentage;
     }
 
     function adjustBurnPercentage(uint percentage) public onlyOwner() {
@@ -351,7 +351,7 @@ contract EternalZombiesStaker is Ownable, ReentrancyGuard, IERC721Receiver {
         require(msg.sender == owner() || msg.sender == DISTRIBUTOR, "EZ: not owner or distributor");
         harvest();
         uint balance = IBEP20(ZMBE).balanceOf(address(this));
-        uint forDev = (balance / 100) * FUNDING_WALLET_PERCENTAGE;
+        uint forDev = (balance / 100) * DEV_PERCENTAGE;
         uint forRestake = (balance / 100) * RESTAKE_PERCENTAGE;
         uint forBurn = (balance / 100) * BURN_PERCENTAGE;
         uint forDistribution = balance - (forDev + forRestake + forBurn);
